@@ -6431,11 +6431,16 @@ function registerRuntimeService(db: Db | undefined, record: RuntimeServiceRecord
     if (current.reuseKey && runtimeServicesByReuseKey.get(current.reuseKey) === current.id) {
       runtimeServicesByReuseKey.delete(current.reuseKey);
     }
+    // The exit handler runs after the process ends. The owning workspace or
+    // company rows can be gone by then (a workspace deletion, or test teardown).
+    // The final stopped-state persist is best effort, so a rejected insert must
+    // not become an unhandled rejection. Guard it like the other detached
+    // persist paths in this file.
     void (async () => {
       await cleanupRecordExposure(current);
       await removeLocalServiceRegistryRecord(current.serviceKey);
       await persistRuntimeServiceRecord(db, current);
-    })();
+    })().catch(() => undefined);
   });
 }
 
