@@ -6,6 +6,7 @@ export function buildNewAgentRuntimeConfig(input?: {
   intervalSec?: number;
   cheapModel?: string;
   cheapModelEnabled?: boolean;
+  cheapModelReasoningEffort?: string;
 }): Record<string, unknown> {
   const config: Record<string, unknown> = {
     heartbeat: {
@@ -19,12 +20,16 @@ export function buildNewAgentRuntimeConfig(input?: {
   };
 
   const cheapModel = input?.cheapModel?.trim() ?? "";
+  const cheapModelReasoningEffort = input?.cheapModelReasoningEffort?.trim() ?? "";
   const cheapEnabled = input?.cheapModelEnabled ?? false;
   if (cheapEnabled) {
     config.modelProfiles = {
       cheap: {
         enabled: true,
-        adapterConfig: cheapModel ? { model: cheapModel } : {},
+        adapterConfig: {
+          ...(cheapModel ? { model: cheapModel } : {}),
+          ...(cheapModelReasoningEffort ? { modelReasoningEffort: cheapModelReasoningEffort } : {}),
+        },
       },
     };
   }

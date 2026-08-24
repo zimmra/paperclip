@@ -53,6 +53,24 @@ describe("buildNewAgentRuntimeConfig", () => {
     expect(config.heartbeat).toMatchObject({ enabled: true, intervalSec: 600 });
   });
 
+  it("stores cheap Codex reasoning effort beside the cheap model", () => {
+    const config = buildNewAgentRuntimeConfig({
+      cheapModel: "gpt-5.6-luna",
+      cheapModelEnabled: true,
+      cheapModelReasoningEffort: "low",
+    });
+
+    expect(config.modelProfiles).toEqual({
+      cheap: {
+        enabled: true,
+        adapterConfig: {
+          model: "gpt-5.6-luna",
+          modelReasoningEffort: "low",
+        },
+      },
+    });
+  });
+
   it("omits modelProfiles when no cheap model is configured", () => {
     const config = buildNewAgentRuntimeConfig({ heartbeatEnabled: false });
     expect(config.modelProfiles).toBeUndefined();

@@ -46,6 +46,25 @@ describe("heartbeat model profile application", () => {
     expect(merged).toEqual({ model: "primary" });
   });
 
+  it("lets a cheap Codex profile explicitly override inherited reasoning effort", async () => {
+    const modelProfile = resolveModelProfileApplication({
+      adapterModelProfiles: await listAdapterModelProfiles("codex_local"),
+      agentRuntimeConfig: {
+        modelProfiles: {
+          cheap: { enabled: true, adapterConfig: { modelReasoningEffort: "low" } },
+        },
+      },
+      issueModelProfile: "cheap",
+      contextSnapshot: {},
+    });
+
+    expect(mergeModelProfileAdapterConfig({
+      baseConfig: { model: "gpt-5.6-sol", modelReasoningEffort: "high" },
+      modelProfile,
+      issueAdapterConfig: null,
+    })).toEqual({ model: "gpt-5.6-sol", modelReasoningEffort: "low" });
+  });
+
   it("applies cheap profile patches before explicit issue adapter config overrides", () => {
     const modelProfile = resolveModelProfileApplication({
       adapterModelProfiles: [cheapProfile],

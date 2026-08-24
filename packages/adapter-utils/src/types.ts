@@ -558,6 +558,11 @@ export interface CreateConfigValues {
    */
   cheapModel?: string;
   cheapModelEnabled?: boolean;
+  /**
+   * Optional Codex reasoning-effort override for the cheap profile. Like
+   * `cheapModel`, this is persisted only in the cheap profile's adapter config.
+   */
+  cheapModelReasoningEffort?: string;
   chrome: boolean;
   dangerouslySkipPermissions: boolean;
   claudeEngine?: "auto" | "cli" | "acp";

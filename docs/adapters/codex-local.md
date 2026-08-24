@@ -27,6 +27,25 @@ The `codex_local` adapter runs OpenAI's Codex CLI locally. It supports session p
 | `fastMode` | boolean | No | Enables Codex Fast mode. Currently supported on `gpt-5.4` only and burns credits faster |
 | `dangerouslyBypassApprovalsAndSandbox` | boolean | No | Skip safety checks (dev only) |
 
+## Cheap Profile
+
+The Agent configuration form has a separate **Cheap model** section for the
+status-only recovery lane. Its **Cheap-lane thinking effort** control accepts
+only Codex's supported values: Auto, Minimal, Low, Medium, High, and X-High.
+It is stored separately from the primary adapter configuration, so choosing
+`low` for the cheap lane does not change the agent's normal-run effort.
+
+When the cheap model or cheap-lane effort is left on Auto, the runtime merges
+the cheap profile over the primary configuration. That means an unset cheap
+model inherits the primary model, and an unset cheap-lane effort inherits the
+primary reasoning-effort setting. If the primary effort is also Auto, Codex CLI
+selects its own platform default; Paperclip intentionally does not present that
+provider-controlled value as a fixed Paperclip default. The form displays the
+inherited primary value (or `Auto (Codex default)`) before saving.
+
+Cheap-profile runs are restricted to Paperclip's status-only recovery work;
+they are not a fallback lane for normal source-work retries.
+
 ## Session Persistence
 
 Codex uses `previous_response_id` for session continuity. The adapter serializes and restores this across heartbeats, allowing the agent to maintain conversation context.

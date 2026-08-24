@@ -827,6 +827,28 @@ describe("AgentConfigForm environment selector", () => {
     });
   });
 
+  it("shows the cheap Codex reasoning effort and its inherited primary value", async () => {
+    const result = await renderForm([
+      makeEnvironment({ id: "local-1", name: "Local", driver: "local" }),
+    ], {
+      adapterConfig: { model: "gpt-5.6-sol", modelReasoningEffort: "high" },
+      runtimeConfig: {
+        modelProfiles: {
+          cheap: {
+            enabled: true,
+            adapterConfig: { model: "gpt-5.6-luna" },
+          },
+        },
+      },
+    });
+    roots.push(result.root);
+
+    const text = result.container.textContent ?? "";
+    expect(text).toContain("Cheap-lane thinking effort");
+    expect(text).toContain("No explicit cheap-lane thinking effort");
+    expect(text).toContain("high");
+  });
+
   it("tests a Codex agent after clearing the primary model to the adapter default", async () => {
     const result = await renderForm([
       makeEnvironment({ id: "local-1", name: "Local", driver: "local" }),

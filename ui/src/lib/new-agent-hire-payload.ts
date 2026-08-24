@@ -37,6 +37,7 @@ export function buildNewAgentHirePayload(input: {
       intervalSec: configValues.intervalSec,
       cheapModel: configValues.cheapModel,
       cheapModelEnabled: configValues.cheapModelEnabled,
+      cheapModelReasoningEffort: configValues.cheapModelReasoningEffort,
     }),
     budgetMonthlyCents: 0,
     ...(permissions ? { permissions } : {}),

@@ -168,6 +168,36 @@ describe("buildAgentUpdatePatch", () => {
     });
   });
 
+  it("removes cleared cheap-profile adapter settings instead of persisting undefined values", () => {
+    const agent = makeAgent();
+    agent.runtimeConfig = {
+      modelProfiles: {
+        cheap: {
+          enabled: true,
+          adapterConfig: { model: "gpt-5.6-luna", reasoningEffort: "high" },
+        },
+      },
+    };
+
+    const patch = buildAgentUpdatePatch(
+      agent,
+      makeOverlay({
+        modelProfiles: {
+          cheap: {
+            adapterConfig: {
+              modelReasoningEffort: undefined,
+              reasoningEffort: undefined,
+            },
+          },
+        },
+      }),
+    );
+
+    expect((patch.runtimeConfig as Record<string, unknown>).modelProfiles).toEqual({
+      cheap: { enabled: true, adapterConfig: { model: "gpt-5.6-luna" } },
+    });
+  });
+
   it("clears the cheap profile when the overlay marks it cleared", () => {
     const agent = makeAgent();
     agent.runtimeConfig = {

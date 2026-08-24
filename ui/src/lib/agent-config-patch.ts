@@ -78,10 +78,10 @@ export function buildAgentUpdatePatch(agent: Agent, overlay: AgentConfigOverlay)
       if (cheapOverlay?.cleared) {
         delete nextProfiles.cheap;
       } else if (cheapOverlay) {
-        const mergedAdapterConfig = {
+        const mergedAdapterConfig = omitUndefinedEntries({
           ...((existingCheap.adapterConfig ?? {}) as Record<string, unknown>),
           ...(cheapOverlay.adapterConfig ?? {}),
-        };
+        });
         const enabled = cheapOverlay.enabled ?? (existingCheap.enabled !== false);
         nextProfiles.cheap = {
           ...existingCheap,

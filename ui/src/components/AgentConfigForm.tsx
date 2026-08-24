@@ -705,6 +705,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   // Popover states
   const [modelOpen, setModelOpen] = useState(false);
   const [cheapModelOpen, setCheapModelOpen] = useState(false);
+  const [cheapThinkingEffortOpen, setCheapThinkingEffortOpen] = useState(false);
   const [thinkingEffortOpen, setThinkingEffortOpen] = useState(false);
 
   // Cheap model profile state — only relevant when the adapter advertises
@@ -1126,6 +1127,12 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       enabled: cheap.enabled !== false,
       adapterConfig: cheapAdapterConfig,
       model: typeof cheapAdapterConfig.model === "string" ? cheapAdapterConfig.model : "",
+      reasoningEffort:
+        typeof cheapAdapterConfig.modelReasoningEffort === "string"
+          ? cheapAdapterConfig.modelReasoningEffort
+          : typeof cheapAdapterConfig.reasoningEffort === "string"
+            ? cheapAdapterConfig.reasoningEffort
+            : "",
     };
   }, [runtimeConfig]);
   const cheapOverlay = !isCreate ? overlay.modelProfiles?.cheap : undefined;
@@ -1138,6 +1145,22 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         const overlayModel = (cheapOverlay?.adapterConfig as Record<string, unknown> | undefined)?.model;
         if (typeof overlayModel === "string") return overlayModel;
         return cheapProfileFromAgent.model;
+      })();
+  const currentCheapThinkingEffort = isCreate
+    ? val!.cheapModelReasoningEffort ?? ""
+    : (() => {
+        const overlayAdapterConfig = asObject(cheapOverlay?.adapterConfig);
+        if (Object.prototype.hasOwnProperty.call(overlayAdapterConfig, "modelReasoningEffort")) {
+          return typeof overlayAdapterConfig.modelReasoningEffort === "string"
+            ? overlayAdapterConfig.modelReasoningEffort
+            : "";
+        }
+        if (Object.prototype.hasOwnProperty.call(overlayAdapterConfig, "reasoningEffort")) {
+          return typeof overlayAdapterConfig.reasoningEffort === "string"
+            ? overlayAdapterConfig.reasoningEffort
+            : "";
+        }
+        return cheapProfileFromAgent.reasoningEffort;
       })();
 
   function setCheapEnabled(next: boolean) {
@@ -1173,6 +1196,30 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           cheap: {
             ...existing,
             adapterConfig: nextAdapterConfig,
+          },
+        },
+      };
+    });
+  }
+
+  function setCheapThinkingEffort(next: string) {
+    if (isCreate) {
+      set!({ cheapModelReasoningEffort: next });
+      return;
+    }
+    setOverlay((prev) => {
+      const existing = prev.modelProfiles?.cheap ?? {};
+      return {
+        ...prev,
+        modelProfiles: {
+          cheap: {
+            ...existing,
+            adapterConfig: {
+              ...((existing.adapterConfig ?? {}) as Record<string, unknown>),
+              modelReasoningEffort: next || undefined,
+              // Clear the legacy alias too so Auto has its documented inherit behavior.
+              reasoningEffort: undefined,
+            },
           },
         },
       };
@@ -1648,10 +1695,17 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                   models={models}
                   adapterType={adapterType}
                   adapterDefaultModel={adapterCheapDefaultModel}
+                  showReasoningEffort={adapterType === "codex_local"}
+                  reasoningEffort={currentCheapThinkingEffort}
+                  inheritedReasoningEffort={currentThinkingEffort}
+                  reasoningEffortOptions={codexThinkingEffortOptions}
                   onEnabledChange={setCheapEnabled}
                   onModelChange={setCheapModel}
+                  onReasoningEffortChange={setCheapThinkingEffort}
                   open={cheapModelOpen}
                   onOpenChange={setCheapModelOpen}
+                  reasoningEffortOpen={cheapThinkingEffortOpen}
+                  onReasoningEffortOpenChange={setCheapThinkingEffortOpen}
                 />
               )}
 
@@ -3164,20 +3218,34 @@ function CheapModelSection({
   models,
   adapterType,
   adapterDefaultModel,
+  showReasoningEffort,
+  reasoningEffort,
+  inheritedReasoningEffort,
+  reasoningEffortOptions,
   onEnabledChange,
   onModelChange,
+  onReasoningEffortChange,
   open,
   onOpenChange,
+  reasoningEffortOpen,
+  onReasoningEffortOpenChange,
 }: {
   enabled: boolean;
   model: string;
   models: AdapterModel[];
   adapterType: string;
   adapterDefaultModel: string;
+  showReasoningEffort: boolean;
+  reasoningEffort: string;
+  inheritedReasoningEffort: string;
+  reasoningEffortOptions: ReadonlyArray<{ id: string; label: string }>;
   onEnabledChange: (next: boolean) => void;
   onModelChange: (next: string) => void;
+  onReasoningEffortChange: (next: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  reasoningEffortOpen: boolean;
+  onReasoningEffortOpenChange: (open: boolean) => void;
 }) {
   const placeholderHint = adapterDefaultModel
     ? `Adapter default · ${adapterDefaultModel}`
@@ -3194,21 +3262,41 @@ function CheapModelSection({
         <ToggleSwitch checked={enabled} onCheckedChange={onEnabledChange} />
       </div>
       {enabled ? (
-        <ModelDropdown
-          models={models}
-          value={model}
-          onChange={onModelChange}
-          open={open}
-          onOpenChange={onOpenChange}
-          allowDefault
-          required={false}
-          groupByProvider={adapterType === "opencode_local"}
-          creatable
-          detectedModel={null}
-          detectedModelCandidates={[]}
-          emptyDetectHint={placeholderHint}
-          defaultLabel={placeholderHint}
-        />
+        <>
+          <ModelDropdown
+            models={models}
+            value={model}
+            onChange={onModelChange}
+            open={open}
+            onOpenChange={onOpenChange}
+            allowDefault
+            required={false}
+            groupByProvider={adapterType === "opencode_local"}
+            creatable
+            detectedModel={null}
+            detectedModelCandidates={[]}
+            emptyDetectHint={placeholderHint}
+            defaultLabel={placeholderHint}
+          />
+          {showReasoningEffort ? (
+            <>
+              <ThinkingEffortDropdown
+                value={reasoningEffort}
+                options={reasoningEffortOptions}
+                onChange={onReasoningEffortChange}
+                open={reasoningEffortOpen}
+                onOpenChange={onReasoningEffortOpenChange}
+                label="Cheap-lane thinking effort"
+              />
+              {!reasoningEffort ? (
+                <p className="text-(length:--text-micro) text-muted-foreground">
+                  No explicit cheap-lane thinking effort — runtime inherits the primary lane’s{" "}
+                  <code>{inheritedReasoningEffort || "Auto (Codex default)"}</code> setting.
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </>
       ) : null}
       {enabled && !model && adapterDefaultModel ? (
         <p className="text-(length:--text-micro) text-muted-foreground">
@@ -3230,17 +3318,19 @@ function ThinkingEffortDropdown({
   onChange,
   open,
   onOpenChange,
+  label = "Thinking effort",
 }: {
   value: string;
   options: ReadonlyArray<{ id: string; label: string }>;
   onChange: (id: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  label?: string;
 }) {
   const selected = options.find((option) => option.id === value) ?? options[0];
 
   return (
-    <Field label="Thinking effort" hint={help.thinkingEffort}>
+    <Field label={label} hint={help.thinkingEffort}>
       <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>
           <button className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm hover:bg-accent/50 transition-colors w-full justify-between">
