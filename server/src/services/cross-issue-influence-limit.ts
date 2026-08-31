@@ -43,6 +43,89 @@ function readRunSourceIssueId(contextSnapshot: unknown) {
   return null;
 }
 
+export type RunSourceIssueAdoption = "adopted" | "already_scoped" | "run_unavailable";
+
+/**
+ * Establishes `issueId` as the run's source issue when the run has none yet.
+ *
+ * A plain `heartbeat_timer` wake carries no `issueId`/`taskId` in its context
+ * snapshot, so the source-issue gate above rejects every issue write from that
+ * run — including writes to the issue the run has just checked out and is
+ * actively working. Checkout is the honest place to close that gap: it already
+ * authenticates the agent, enforces assignment, and binds the issue's
+ * `checkoutRunId` to this run, so the run/issue association it creates is the
+ * same one the guard needs.
+ *
+ * Adoption is establish-once and never overwrites. A run woken for issue A that
+ * later checks out issue B keeps A as its source, so B's writes stay counted
+ * against the cross-issue cap rather than resetting the run's scope — otherwise
+ * a run could launder unlimited cross-issue influence by checking out each
+ * target in turn. Locking the run row serializes concurrent checkouts from one
+ * run onto a single winner.
+ */
+export async function adoptRunSourceIssue(
+  db: Db,
+  input: {
+    companyId: string;
+    runId: string;
+    agentId: string;
+    issueId: string;
+  },
+): Promise<RunSourceIssueAdoption> {
+  // Same fail-closed posture as the guard: an API-key caller controls the run
+  // header, so a malformed identifier must never reach a PostgreSQL cast.
+  if (!isUuidLike(input.runId)) return "run_unavailable";
+
+  return db.transaction(async (tx) => {
+    const run = await tx
+      .select({
+        id: heartbeatRuns.id,
+        companyId: heartbeatRuns.companyId,
+        agentId: heartbeatRuns.agentId,
+        contextSnapshot: heartbeatRuns.contextSnapshot,
+      })
+      .from(heartbeatRuns)
+      .where(and(
+        eq(heartbeatRuns.id, input.runId),
+        eq(heartbeatRuns.companyId, input.companyId),
+        eq(heartbeatRuns.agentId, input.agentId),
+      ))
+      .for("update")
+      .then((rows) => rows[0] ?? null);
+    if (!run || run.companyId !== input.companyId || run.agentId !== input.agentId) {
+      return "run_unavailable";
+    }
+    if (readRunSourceIssueId(run.contextSnapshot)) return "already_scoped";
+
+    const snapshot = run.contextSnapshot && typeof run.contextSnapshot === "object"
+      && !Array.isArray(run.contextSnapshot)
+      ? run.contextSnapshot
+      : {};
+    await tx
+      .update(heartbeatRuns)
+      .set({
+        contextSnapshot: {
+          ...snapshot,
+          issueId: input.issueId,
+          // Names where an otherwise unscoped run got its issue, so a reader of
+          // the snapshot can tell an adopted scope from a dispatched one.
+          issueIdSource: "issue.checkout",
+        },
+      })
+      .where(eq(heartbeatRuns.id, run.id));
+
+    logger.info({
+      event: "run_source_issue_adopted",
+      companyId: input.companyId,
+      runId: input.runId,
+      agentId: input.agentId,
+      issueId: input.issueId,
+    }, "unscoped run adopted its checked-out issue as source");
+
+    return "adopted";
+  });
+}
+
 export function evaluateCrossIssueInfluenceLimit(input: {
   priorCount: number;
   now?: Date;

@@ -255,6 +255,7 @@ import {
 } from "../services/issue-thread-interaction-resolution.js";
 import { resolveSelectedSuggestedTasks } from "../services/issue-thread-interactions.js";
 import {
+  adoptRunSourceIssue,
   crossIssueInfluenceLimitError,
   crossIssueInfluenceRunContextError,
   observeCrossIssueInfluence,
@@ -11101,6 +11102,27 @@ export function issueRoutes(
       await companySkillsSvc.markTestRunRunning(updated.companyId, updated.id);
     }
 
+    // A generic `heartbeat_timer` wake has no issue in its context snapshot, so
+    // without this the run cannot comment on or update the very issue it just
+    // checked out — the cross-issue guard reads the snapshot, not the checkout.
+    // Adoption never overwrites an existing scope, so an issue-scoped wake keeps
+    // its source and a second checkout stays counted against the cap.
+    let adoptedRunSourceIssue = false;
+    if (updated && req.actor.type === "agent" && req.actor.agentId && checkoutRunId) {
+      try {
+        adoptedRunSourceIssue = await adoptRunSourceIssue(db, {
+          companyId: issue.companyId,
+          runId: checkoutRunId,
+          agentId: req.actor.agentId,
+          issueId: issue.id,
+        }) === "adopted";
+      } catch (err) {
+        // The checkout itself already committed; a failed adoption must not
+        // turn a successful checkout into an error the agent has to retry.
+        logger.warn({ err, issueId: issue.id, runId: checkoutRunId }, "failed to adopt checked-out issue as run source");
+      }
+    }
+
     await logActivity(db, {
       companyId: issue.companyId,
       actorType: actor.actorType,
@@ -11111,7 +11133,7 @@ export function issueRoutes(
       action: "issue.checked_out",
       entityType: "issue",
       entityId: issue.id,
-      details: { agentId: req.body.agentId },
+      details: { agentId: req.body.agentId, ...(adoptedRunSourceIssue ? { adoptedRunSourceIssue: true } : {}) },
     });
 
     if (
